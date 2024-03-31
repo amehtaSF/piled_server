@@ -1,0 +1,159 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pi LED server</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/main.css') }}">
+
+<script>
+    $(document).ready(function() {
+        // URL endpoint to send the GET request
+        var url = "{{ url_for('led_program') }}";
+
+        var pattern_state = "off";
+
+        function disableColorInput()
+        {
+            document.getElementById('colorInputLabel').style.color = "gray";
+            document.getElementById('colorInput').disabled = true;
+        }
+        function enableColorInput()
+        {
+            document.getElementById('colorInputLabel').style.color = "black";
+            document.getElementById('colorInput').disabled = false;
+        }
+        function disableDelayInput()
+        {
+            document.getElementById('delayInputLabel').style.color = "gray";
+            document.getElementById('delay_ms').disabled = true;
+        }
+        function enableDelayInput()
+        {
+            document.getElementById('delayInputLabel').style.color = "black";
+            document.getElementById('delay_ms').disabled = false;
+        }
+
+
+        // Function to perform the GET request with specific program value
+        function sendGetRequest(data) {
+
+            // Perform the GET request
+            $.get(url, data)
+                .done(function(response) {
+                    // Handle successful response
+                    console.log('Response:', response);
+                })
+                .fail(function(xhr, status, error) {
+                    // Handle errors
+                    console.error('Error:', error);
+                });
+        }
+
+        const colorInput = document.getElementById('colorInput');
+        const rgbValuesDiv = document.getElementById('rgbValues');
+
+        // display the delay_ms when it changes
+        const delay_ms = document.getElementById('delay_ms');
+        const delay_ms_value = document.getElementById('delay_ms_value');
+        delay_ms_value.textContent = delay_ms.value; // Display the default slider value
+        delay_ms.oninput = function() {
+            delay_ms_value.textContent = this.value;
+        }
+
+
+        colorInput.addEventListener('input', function() {
+            const color = this.value; // Get the color value
+            const rgb = hex2rgb(color); // Convert HEX to RGB
+            rgbValuesDiv.textContent = `RGB: ${rgb.R}, ${rgb.G}, ${rgb.B}`;
+        });
+        function hex2rgb(hex) {
+            // Expand shorthand form (e.g. "03F") to full form (e.g. "0033FF")
+            const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+            hex = hex.replace(shorthandRegex, (m, r, g, b) => {
+                return r + r + g + g + b + b;
+            });
+
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                R: parseInt(result[1], 16),
+                G: parseInt(result[2], 16),
+                B: parseInt(result[3], 16)
+            } : null;
+        }
+
+        $('#solid-color-btn').click(function() {
+            enableColorInput();
+            disableDelayInput();
+            sendGetRequest({"program": "solidColor",
+             "R": hex2rgb(colorInput.value).R,
+             "G": hex2rgb(colorInput.value).G, 
+             "B": hex2rgb(colorInput.value).B});
+        });
+
+        $('#color-wipe-btn').click(function() {
+            enableColorInput();
+            enableDelayInput();
+            sendGetRequest({"program": "colorWipe",
+             "R": hex2rgb(colorInput.value).R,
+             "G": hex2rgb(colorInput.value).G, 
+             "B": hex2rgb(colorInput.value).B,
+             "delay_ms": $('#delay_ms').val()});
+        });
+
+        $('#rainbow-wipe-always-on-btn').click(function() {
+            disableColorInput();
+            enableDelayInput();
+            sendGetRequest({"program": "rainbowWipeAlwaysOn",
+             "delay_ms": $('#delay_ms').val()});
+        });
+
+
+
+        $('#clear-btn').click(function() {
+            sendGetRequest({"program": "clear"});
+        });
+
+
+
+
+    });
+</script>
+</head>
+<body>
+    <h1>RPi LED Server</h1>
+
+<p>
+    <label for="color" id="colorInputLabel">Select color: </label><input type="color" id="colorInput">
+    <div id="rgbValues"></div>
+</p>
+
+<p>
+    <div class="slidecontainer">
+        <label for="delay_ms" id="delayInputLabel">Delay (ms): <span id="delay_ms_value"></span></label>
+        <input type="range" min="1" max="100" value="25" class="slider" id="delay_ms">
+    </div>
+    
+</p>
+
+<p>
+    <button id="solid-color-btn">Solid Color</button>
+</p>
+
+<p>
+    <button id="color-wipe-btn">Color Wipe</button>
+</p>
+
+<p>
+    <button id="rainbow-wipe-always-on-btn">Rainbow Wipe Always On</button>
+</p>
+
+
+<p>
+    <button id="clear-btn">Clear</button>
+</p>
+
+
+</body>
+
+</html>

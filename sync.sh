@@ -1,0 +1,1 @@
+rsync -avz --exclude='venv/' . pi@piled.local:/home/pi/piled_server/
