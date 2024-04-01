@@ -8,6 +8,28 @@
 
 <script>
     $(document).ready(function() {
+
+        // On load, query the endpoint get_params to get the current state of the LED and update the UI
+        $.get("{{ url_for('get_state') }}")
+            .done(function(response) {
+                // Handle successful response
+                console.log('Response:', response);
+                // set delay_ms slider to response["delay_ms"]
+                $('#delay_ms').val(response["delay_ms"]);
+                $('#delay_ms_value').text(response["delay_ms"]);
+                // set colorInput to response["color"]
+                $('#colorInput').val(response["color"]);
+                // set rgbValues to response["color"]
+                const rgb = hex2rgb(response["color"]);
+                $('#rgbValues').text(`RGB: ${rgb.R}, ${rgb.G}, ${rgb.B}`);
+
+            })
+            .fail(function(xhr, status, error) {
+                // Handle errors
+                console.error('Error:', error);
+            });
+
+
         // URL endpoint to send the GET request
         var url = "{{ url_for('led_program') }}";
 
@@ -101,10 +123,41 @@
              "delay_ms": $('#delay_ms').val()});
         });
 
+
+        $('#color-shots-btn').click(function() {
+            disableColorInput();
+            disableDelayInput();
+            sendGetRequest({"program": "colorShots"});
+        });
+
+        $('#theater-chase-btn').click(function() {
+            enableColorInput();
+            enableDelayInput();
+            sendGetRequest({"program": "theaterChase",
+             "R": hex2rgb(colorInput.value).R,
+             "G": hex2rgb(colorInput.value).G, 
+             "B": hex2rgb(colorInput.value).B,
+             "delay_ms": $('#delay_ms').val()});
+        });
+
         $('#rainbow-wipe-always-on-btn').click(function() {
             disableColorInput();
             enableDelayInput();
             sendGetRequest({"program": "rainbowWipeAlwaysOn",
+             "delay_ms": $('#delay_ms').val()});
+        });
+
+        $('#rainbow-wipe-btn').click(function() {
+            disableColorInput();
+            enableDelayInput();
+            sendGetRequest({"program": "rainbowWipe",
+             "delay_ms": $('#delay_ms').val()});
+        });
+
+        $('#theater-chase-rainbow-btn').click(function() {
+            disableColorInput();
+            enableDelayInput();
+            sendGetRequest({"program": "theaterChaseRainbow",
              "delay_ms": $('#delay_ms').val()});
         });
 
@@ -124,7 +177,7 @@
     <h1>RPi LED Server</h1>
 
 <p>
-    <label for="color" id="colorInputLabel">Select color: </label><input type="color" id="colorInput">
+    <label for="color" id="colorInputLabel">Select color: </label><input type="color" id="colorInput" value="#FFFFFF">
     <div id="rgbValues"></div>
 </p>
 
@@ -145,9 +198,24 @@
 </p>
 
 <p>
+    <button id="theater-chase-btn">Theater Chase</button>
+</p>
+
+<p>
+    <button id="theater-chase-rainbow-btn">Theater Chase Rainbow</button>
+</p>
+
+<p>
+    <button id="rainbow-wipe-btn">Rainbow Wipe</button>
+</p>
+
+<p>
     <button id="rainbow-wipe-always-on-btn">Rainbow Wipe Always On</button>
 </p>
 
+<p>
+    <button id="color-shots-btn">Color Shots</button>
+</p>
 
 <p>
     <button id="clear-btn">Clear</button>

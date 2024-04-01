@@ -5,6 +5,7 @@ from rpi_ws281x import PixelStrip, Color
 import argparse
 from random import randint
 import numpy as np
+import threading
 
 # LED strip configuration:
 LED_COUNT = 300        # Number of LED pixels.
@@ -32,22 +33,39 @@ class LED:
         #     self.brightness = 1
         
         self.current_pattern = "clear"
-        self.rgb = None
-        self.delay_ms = None
+        self.rgb = [0, 0, 0]
+        self.delay_ms = 20
 
     def solidColor(self, rgb):
         """Fill the entire strip with a single color."""
         self.current_pattern = "solidColor"
-        self.rgb = rgb
+        self.rgb = self.threshold_brightness(rgb)
+        # self.rgb = rgb
         for i in range(self.strip.numPixels()):
             self.strip.setPixelColor(i, Color(*self.rgb))
         self.strip.show()
 
+    def threshold_brightness(self, rgb, threshold=127):
+        # Calculate the total brightness of the RGB tuple
+        total_brightness = np.mean(rgb)
+
+        # Check if total brightness exceeds the threshold
+        if total_brightness > threshold:
+            # Calculate the scaling factor to dampen brightness
+            scale_factor = threshold / total_brightness
+
+            # Dampen the brightness of each component proportionally
+            dampened_rgb = tuple(int(value * scale_factor) for value in rgb)
+            return dampened_rgb
+        else:
+            # If total brightness is below threshold, return the original tuple
+            return rgb    
 
     def colorWipe(self, rgb, delay_ms=50):
         """Wipe color across display a pixel at a time."""
         self.current_pattern = "colorWipe"
-        self.rgb = rgb
+        self.rgb = self.threshold_brightness(rgb)
+        # self.rgb = rgb
         self.delay_ms = delay_ms
         while True:
             for i in range(self.strip.numPixels()):
@@ -121,14 +139,26 @@ class LED:
             rand_rgb = self.randomRGB()
             endpoint = randint(min, self.strip.numPixels())
             rand_delay_ms = randint(delay_ms_min, delay_ms_max)
-            for i in range(endpoint-length):
-                '''move the segment along the strip'''
-                self.lightSegment(i, i+length, rand_rgb)
-                time.sleep(rand_delay_ms / 1000.0)
-            for i in range(length-3):
-                '''fade the segment out'''
-                self.lightSegment(endpoint-length+i, endpoint, rand_rgb)
-                time.sleep(rand_delay_ms / 1000.0)
+            if randint(0, 1) == 0:
+                # go from left
+                for i in range(endpoint-length):
+                    '''move the segment along the strip'''
+                    self.lightSegment(i, i+length, rand_rgb)
+                    time.sleep(rand_delay_ms / 1000.0)
+                for i in range(length-3):
+                    '''fade the segment out'''
+                    self.lightSegment(endpoint-length+i, endpoint, rand_rgb)
+                    time.sleep(rand_delay_ms / 1000.0)
+            else:
+                # go from right
+                for i in range(self.strip.numPixels(), endpoint+length, -1):
+                    '''move the segment along the strip'''
+                    self.lightSegment(i-length, i, rand_rgb)
+                    time.sleep(rand_delay_ms / 1000.0)
+                for i in range(length-3):
+                    '''fade the segment out'''
+                    self.lightSegment(endpoint, endpoint+length-i, rand_rgb)
+                    time.sleep(rand_delay_ms / 1000.0)
             # rand_rgb = [randint(0, 255) for _ in range(3)]
             rand_rgb = self.randomRGB(min_diff=100)
             explosion_size = randint(70, 300)
@@ -138,7 +168,75 @@ class LED:
             self.clear()
 
 
-    def theaterChase(self, rgb, delay_ms=50, iterations=10):
+    def fireShotLeft(self, min, length, delay_ms_min, delay_ms_max):
+        rand_rgb = self.randomRGB()
+        endpoint = randint(min, self.strip.numPixels())
+        rand_delay_ms = randint(delay_ms_min, delay_ms_max)
+        for i in range(endpoint-length):
+            '''move the segment along the strip'''
+            self.lightSegment(i, i+length, rand_rgb, 
+                                exclusive=False, show=False)
+            self.strip.setPixelColor(i-1, Color(0, 0, 0))
+            self.strip.show()
+            time.sleep(rand_delay_ms / 1000.0)
+        self.lightSegment(start=endpoint-length-1, end=endpoint, rgb=[0, 0, 0], 
+                          exclusive=False, show=True)
+        rand_rgb = self.randomRGB(min_diff=100)
+        explosion_size = randint(70, 300)
+        explosion_delay_ms = randint(5, 10)
+        self.explosion(rand_rgb, endpoint, size=explosion_size, fade=.2, delay_ms=explosion_delay_ms)
+
+    def fireShotRight(self, min, length, delay_ms_min, delay_ms_max):
+        rand_rgb = self.randomRGB()
+        endpoint = randint(min, self.strip.numPixels())
+        rand_delay_ms = randint(delay_ms_min, delay_ms_max)
+        for i in range(self.strip.numPixels(), endpoint+length, -1):
+            '''move the segment along the strip'''
+            self.lightSegment(i-length, i, rand_rgb,
+                                exclusive=False, show=False)
+            self.strip.setPixelColor(i+1, Color(0, 0, 0))
+            self.strip.show()
+            time.sleep(rand_delay_ms / 1000.0)
+        self.lightSegment(endpoint-1, endpoint+length+1, [0, 0, 0],
+                          exclusive=False, show=True)
+        rand_rgb = self.randomRGB(min_diff=100)
+        explosion_size = randint(150, 300)
+        explosion_delay_ms = randint(3, 7)
+        self.explosion(rand_rgb, endpoint, size=explosion_size, fade=.2, delay_ms=explosion_delay_ms)
+
+
+
+
+    def fireShotRandom(self, min, length, delay_ms_min, delay_ms_max):
+        if randint(0, 1) == 0:
+            self.fireShotLeft(min, length, delay_ms_min, delay_ms_max)
+        else:
+            self.fireShotRight(min, length, delay_ms_min, delay_ms_max)
+
+    def colorShotsMultiple(self, min=20, length=5, delay_ms_min=5, delay_ms_max=20):
+        self.current_pattern = "colorShotsMultiple"
+
+        while True:
+            thread1 = threading.Thread(target=self.fireShotRandom, 
+                                       kwargs={"min": min, 
+                                               "length": length,
+                                                "delay_ms_min": delay_ms_min,
+                                                  "delay_ms_max": delay_ms_max})
+            thread2 = threading.Thread(target=self.fireShotRandom,
+                                       kwargs={"min": min, 
+                                               "length": length,
+                                                "delay_ms_min": delay_ms_min,
+                                                  "delay_ms_max": delay_ms_max})
+
+            thread1.start()
+            time.sleep(1)
+            thread2.start()
+            time.sleep(1)
+            thread1.join()
+            self.clear()
+
+
+    def theaterChase(self, rgb, delay_ms=50):
         """Movie theater light style chaser animation."""
         self.current_pattern = "theaterChase"
         self.rgb = rgb
@@ -168,6 +266,7 @@ class LED:
     def theaterChaseRainbow(self, delay_ms=50):
         """Rainbow movie theater light style chaser animation."""
         self.current_pattern = "theaterChaseRainbow"
+        self.delay_ms = delay_ms
         while True:
             for j in range(256):
                 for q in range(3):
@@ -181,7 +280,9 @@ class LED:
 
 
     def lightSegment(self, start, end, rgb, exclusive=True, show=True):
-        '''Light a segment of the strip with a single color. If exclusive is True, turn off all other LEDs. If show is True, update the strip.'''
+        '''Light a segment of the strip with a single color. 
+        If exclusive is True, turn off all other LEDs.
+          If show is True, update the strip.'''
         color = Color(*rgb)
         if exclusive:
             for i in range(self.strip.numPixels()):
@@ -238,21 +339,18 @@ class LED:
                 self.strip.show()
                 time.sleep(delay_ms / 1000.0)
 
-
-    def get_rgb(self):
-        return self.rgb
+    def get_params(self):
+        return {"rgb": self.rgb,
+                 "delay_ms": self.delay_ms, 
+                 "current_pattern": self.current_pattern}
     
-
-    def get_delay_ms(self):
-        return self.delay_ms
-    
-
-    def set_rgb(self, rgb):
-        self.rgb = rgb
-
-
-    def set_delay_ms(self, delay_ms):
-        self.delay_ms = delay_ms
+    def set_params(self, **kwargs):
+        if "rgb" in kwargs:
+            self.rgb = kwargs["rgb"]
+        if "delay_ms" in kwargs:
+            self.delay_ms = kwargs["delay_ms"]
+        # if "current_pattern" in kwargs:
+        #     self.current_pattern = kwargs["current_pattern"]
         
 
     def clear(self, show=True):
@@ -283,7 +381,7 @@ if __name__ == "__main__":
         elif args.function == "rainbowCycle":
             led.rainbowCycle()
         elif args.function == "theaterChase":
-            color = [127, 127, 127]
+            color = [255, 255, 255]
             if args.color:
                 color = [int(c) for c in args.color.split(",")]
             led.theaterChase(color)
