@@ -56,6 +56,28 @@ def moving_segment(strip, rgb, lb_start, lb_end, length, step_size, delay_ms):
         time.sleep(delay_ms / 1000.0)
 
 
+def wipe(strip, rgb, start, end, delay_ms):
+    '''Wipe the strip with a single color from start to end.
+
+    Parameters:
+    strip: NeoPixel instance
+    rgb: tuple
+        The RGB color of the wipe
+    start: int
+        The index of the starting pixel
+    end: int
+        The index of the ending pixel
+    delay_ms: int
+        The delay in milliseconds between each iteration
+    '''
+    rgb = threshold_brightness(strip, rgb)
+    for i in range(start, end):
+        strip.setPixelColor(i, Color(*rgb))
+        strip.show()
+        time.sleep(delay_ms / 1000.0)
+
+
+
 def randomRGB(min_diff=80):
     '''Generate a random RGB color with a minimum difference of min_diff between the channels using rejection sampling.'''
     x = [randint(0, 255) for _ in range(3)]
@@ -117,6 +139,7 @@ def getMeanBrightness(strip):
 
 
 def threshold_brightness(strip, rgb, threshold=127):
+    '''TODO: NOT WORKING BECAUSE IT'S NOT TAKING INTO ACCOUNT THE BRIGHTNESS AFTER THE FUNCTION RUNS.'''
     # Calculate the total brightness of the RGB tuple
     mean_brightness = getMeanBrightness(strip)
 

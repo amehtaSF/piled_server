@@ -8,6 +8,7 @@ import numpy as np
 import threading
 from tools import light_segment, randomRGB, explosion, wheel, threshold_brightness
 
+import random
 
 # LED strip configuration:
 LED_COUNT = 300        # Number of LED pixels.
@@ -64,6 +65,85 @@ class LED:
                 self.strip.setPixelColor(i, Color(0, 0, 0))
                 self.strip.show()
                 time.sleep(self.delay_ms / 1000.0)
+
+    def melt(self, rgb, delay_ms=60, off_delay_ms=30, drip_delay_ms=20):
+        """Melt from the lit midsection to the sides"""
+        self.current_pattern = "melt"
+        self.rgb = self.randomRGB()
+        self.delay_ms = delay_ms # Speed of the downward extension
+        self.off_delay_ms = off_delay_ms # Speed of return
+        self.drip_delay_ms = drip_delay_ms # Speed of the drop
+        cum_height_right = 0 # Height of the accumulation 
+        cum_height_left = 0
+        loop_counter = 0
+        direction = 'left'  
+        while True:  
+            start, end = (LED_COUNT / 2) - 59 // 2, (LED_COUNT / 2) + 50 // 2 # Middle segment above the door
+            self.lightSegment(int(start), int(end), self.rgb, exclusive=False)
+            time.sleep(delay_ms / 1000.0)
+            for l in range(80, 1, -1):  # So that the length of the extension is shorter on each drop
+                if direction == 'right':
+                    for i in range(int(end), int(end + l)): # Extending to the right
+                        self.strip.setPixelColor(i, Color(*self.rgb))
+                        self.strip.show()
+                        time.sleep(self.delay_ms / 1000.0)
+                    for i in range(int(end + l), int(end + l + 2)): # Drop forming
+                        self.strip.setPixelColor(i, Color(*self.rgb))
+                        self.strip.show()
+                        time.sleep(self.delay_ms / 1000.0)
+                    def drip_right(): # Drop falling
+                        for i in range(int(end + l + 2), LED_COUNT - cum_height_right - 2):
+                            self.strip.setPixelColor(i - 2, Color(0, 0, 0))
+                            self.strip.setPixelColor(i, Color(*self.rgb))
+                            self.strip.show()
+                            time.sleep(self.drip_delay_ms / 1000.0)
+                        self.lightSegment(int(LED_COUNT - cum_height_right - 2), int(LED_COUNT - cum_height_right), self.rgb, exclusive=False) # Drops accumulating at the bottom
+                    cum_height_right += 2 # Increasing height of the accumulation on the right
+                    thread1 = threading.Thread(target=drip_right) 
+                    thread1.start()
+                else:  # If side == left
+                    # Same as the code for the right side above, but mirrored and defined with regard to "start" rather than "end"
+                    for i in range(int(start), int(start - l), -1):
+                        self.strip.setPixelColor(i, Color(*self.rgb))
+                        self.strip.show()
+                        time.sleep(self.delay_ms / 1000.0)
+                    for i in range(int(start - l - 2), int(start - l), -1):
+                        self.strip.setPixelColor(i, Color(*self.rgb))
+                        self.strip.show()
+                        time.sleep(self.delay_ms / 1000.0)
+                    def drip_left():
+                        for i in range(int(start - l - 2), int(cum_height_left + 2), -1):
+                            self.strip.setPixelColor(i + 2, Color(0, 0, 0))
+                            self.strip.setPixelColor(i, Color(*self.rgb))
+                            self.strip.show()
+                            time.sleep(self.drip_delay_ms / 1000.0)
+                        self.lightSegment(int(cum_height_left), int(2 + cum_height_left), self.rgb, exclusive=False)
+                    cum_height_left += 2
+                    thread1 = threading.Thread(target=drip_left)
+                    thread1.start()
+                def retract(): # Return after the drop has separated
+                    if direction == 'right':
+                        for i in range(int(end + l), int(end), -1):
+                            self.strip.setPixelColor(i, Color(0, 0, 0))
+                            self.strip.show()
+                            time.sleep(self.off_delay_ms / 1000.0)
+                    else:  # If direction == "left"
+                        for i in range(int(start - l), int(start), 1):
+                            self.strip.setPixelColor(i, Color(0, 0, 0))
+                            self.strip.show()
+                            time.sleep(self.off_delay_ms / 1000.0)
+                thread2 = threading.Thread(target=retract)
+                thread2.start()
+                thread1.join()
+                thread2.join() # Threading makes it so that the retraction and the drop can happen simultaneously
+                direction = random.choice(['left', 'right']) # Randomly picking direction for the next loop
+            for i in range(LED_COUNT):
+                self.strip.setPixelColor(i, Color(0, 0, 0)) # Extinguishing all lights after all drops have been dropped
+                cum_height_right = 0 # Resetting accumulations so that they start at the bottom again
+                cum_height_left = 0
+                self.rgb = self.randomRGB() # Changing color
+            loop_counter += 1
+
 
     def rainbowWipe(self, delay_ms=35):
         """Wipe rainbow across display a pixel at a time."""
@@ -325,6 +405,11 @@ if __name__ == "__main__":
             led.colorWipe(color)
         elif args.function == "theaterChaseRainbow":
             led.theaterChaseRainbow()
+        elif args.function == "melt":
+            color = [127, 127, 127]
+            if args.color:
+                color = [int(c) for c in args.color.split(",")]
+            led.melt(color)
         elif args.function == "colorShots":
             # color = [127, 127, 127]
             # if args.color:
